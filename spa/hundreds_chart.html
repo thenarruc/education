@@ -1,0 +1,393 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Outlined" rel="stylesheet">
+    <style type="text/css">
+        body {
+            margin: 0;
+            padding: 8px;
+        }
+        #background {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            z-index: -1;
+            opacity: 0.2;
+            background: url('https://cdn.pixabay.com/photo/2017/06/27/08/27/pay-2446667_960_720.png') no-repeat #EEE;
+            background-size: cover;
+            background-position: center;
+        }
+        #chart {
+            margin: auto;
+            display: grid;
+        }
+        .row {
+            display: flex;
+        }
+        .row div {
+            background: #FFF;
+            width: 10%;
+            text-align: center;
+            cursor: pointer;
+            border: 1px dashed #333;
+            border-radius: 0.5em;
+            user-select: none;
+            overflow:hidden;
+        }
+        @keyframes box_wobble {
+            0%   { transform: rotate(0deg); }
+            33%  { transform: rotate(-10deg); }
+            66%  { transform: rotate(10deg); }
+            100% { transform: rotate(0deg); }
+        }
+        .row div.clicked {
+            border: 1px solid #000;
+            animation-name: box_wobble;
+            animation-duration: 1s;
+        }
+        #colors {
+            margin: auto;
+            padding-bottom: 1em;
+            display: flex;
+            width: 80%;
+        }
+        #colors div {
+            border: 2px solid #CCC;
+            padding: 0;
+            margin: 1%;
+            transition: padding 1s ease 1s, margin 1s ease 1s;
+        }
+        #colors div.selected {
+            border: 2px solid #000;
+            padding: 1%;
+            margin: 0;
+        }
+        
+        #tools {
+            position: absolute;
+            bottom: 1em;
+            right: 1em;
+            width: 1em;
+            user-select: none;
+            cursor: pointer;
+        }
+        #tools span {
+            margin: 0.5em 0;
+        }
+        
+        #pattern_builder, #new_grid {
+            user-select: none;
+            position: absolute;
+            display: none;
+            width: 98%;
+            padding: 1em 0;
+            margin: 0;
+            border: 1px solid #000;
+            border-radius: 0.5em;
+            background: #CCC;
+            text-align: center;
+        }
+        #pattern_builder input, #pattern_builder select, #new_grid input {
+            font-size: 1em;
+            border: none;
+            font-weight: bold;
+            background: transparent;
+            border: 1px dashed #000;
+            text-align: center;
+            border-radius: 3px;
+        }
+        #pattern_color {
+            display: inline-block;
+            height: 0.75em;
+            width: 1em;
+            margin: 0 0.5em;
+            transform: scale(1.8);
+            border: 1px solid #000;
+            border-radius: 2px;
+        }
+        
+        #new_grid input {
+            width: 3em;
+        }            
+    </style>
+    <title>Hundreds Chart</title>
+  </head>
+  <body>
+    <div id='background'></div>
+    <div id='tools'>
+        <span class="material-icons-outlined" onclick="toggleBuilder()" title="Build a Pattern">
+            build
+        </span>
+        <span class="material-icons-outlined" onclick="toggleNewGrid()" title="New Grid">
+            add_box
+        </span>
+        <span class="material-icons-outlined" onclick="clearAll()" title="Clear all">
+            cancel
+        </span>
+    </div>
+    <div id='pattern_builder'>
+        Colour every 
+        <input type='number' value="2" min="1" max="50" id='every_nth' onchange="updateOrdinal()" style="width:2em;text-align:right"/><span id="ordinal" style='font-weight:bold'>nd</span>
+        number 
+        <span id="pattern_color" data-color="red" onclick="nextPatternColor()" style="background-color:red;"></span> 
+        starting at 
+        <input type='number' value="0" min="0" max="9999" id="starting_at" style="width:3em;"/>
+        <span style='padding:0 0.75em'></span>
+        <span class='material-icons-outlined' onclick='buildPattern(1000)' style='position:relative;top:0.2em; left: 0.2em;'>slow_motion_video</span>
+        <span class='material-icons-outlined' onclick='buildPattern(150)' style='position:relative;top:0.2em; left: 0.2em;'>play_arrow</span>
+        <span class='material-icons-outlined' onclick='buildPattern(0)' style='position:relative;top:0.2em; left: 0.2em;'>fast_forward</span>
+        <span class='material-icons-outlined' onclick='buildPattern(-1)' style='position:relative;top:0.2em; left: 0.2em;'>skip_next</span>
+        <span class='material-icons-outlined' onclick='toggleBuilder()' style='position: absolute; top: 0.2em; right: 0.2em;'>close</span>
+    </div>
+    <div id='new_grid'>
+        <h1>Create a new grid</h1>
+        Numbers start at <input type='number' min='1' max='9900' value='1' id="new_grid_size"> and
+        go up by <input type='number' min='1' max='100' value='1' id="new_grid_step">, on a
+        grid that is <input type='number' min='1' max='12' value='10' id='new_grid_rows'>
+        by <input type='number' min='1' max='12' value='10' id='new_grid_columns'>
+        <span class='material-icons-outlined' onclick='newGrid()' style='position:relative;top:0.2em; left: 0.2em;'>add</span>
+        <span class='material-icons-outlined' onclick='toggleNewGrid()' style='position: absolute; top: 0.2em; right: 0.2em;'>close</span>
+    </div>
+    <div id='colors'></div>
+    <div id='chart'></div>
+          
+    <script type="text/javascript">
+        const chart = {
+            start: 1,
+            step: 1,
+            columns: 10,
+            rows: 10,
+            clicked_duration: 1200,
+            default: "white",
+            color: "red",
+            colors: [ "white", "#CCCCCC", "red", "lime", "aqua", "fuchsia", "orange", "pink", "yellow" ],
+            // sound: new Audio("https://actions.google.com/sounds/v1/impacts/dumpster_door_hit.ogg"),
+            // sound_back: new Audio("https://actions.google.com/sounds/v1/impacts/dumpster_bottle_smash.ogg")
+            sound: new Audio("https://actions.google.com/sounds/v1/tools/medium_drill_burst.ogg"),
+            sound_back: new Audio("https://actions.google.com/sounds/v1/tools/medium_drill_burst_low.ogg"),
+            sound_long: new Audio("https://actions.google.com/sounds/v1/tools/sewing_machine_treadle.ogg"),
+            sound_change: new Audio("https://actions.google.com/sounds/v1/tools/small_drill.ogg"),
+        };
+        const query = document.location.search;
+        if(query && query.match(/start=(\d+)/)) {
+            chart.start = parseInt(query.match(/start=(\d+)/)[1]);
+            document.getElementById("starting_at").value = chart.start - 1;
+        }
+        if(query && query.match(/step=(\d+)/)) {
+            chart.step = parseInt(query.match(/step=(\d+)/)[1]);
+        }
+        if(query && query.match(/rows=(\d+)/)) {
+            chart.rows = parseInt(query.match(/rows=(\d+)/)[1]);
+        }
+        if(query && query.match(/columns=(\d+)/)) {
+            chart.columns = parseInt(query.match(/columns=(\d+)/)[1]);
+        }
+        window.addEventListener('resize', resize);
+        
+        
+        function makeColors() {
+            const colors_div = document.getElementById('colors');
+            for(let i=0; i<chart.colors.length; i++) {
+                const color_block = document.createElement("div");
+                color_block.style.backgroundColor = chart.colors[i];
+                color_block.style.height = (window.innerHeight / 20) + "px";
+                color_block.style.width = 100 / chart.colors.length + "%";
+                color_block.dataset.color = chart.colors[i];
+                if(chart.colors[i] == chart.color) color_block.className = "selected";
+                color_block.addEventListener('click', setColor);
+                colors_div.appendChild(color_block);
+            }
+        }
+        
+        function makeBoxes() {
+            let i = 0;
+            for(let row = 0; row < chart.rows; row++) {
+                const row_div = document.createElement("div");
+                row_div.className = "row";
+                document.getElementById("chart").appendChild(row_div);
+
+                for( let col = 0; col < chart.columns; col++) {
+                    const box = document.createElement("div");
+                    row_div.appendChild(box);
+                    box.id = "box_" + i;
+                    box.dataset.toggle = chart.default;
+                    box.dataset.color = chart.default;
+                    box.dataset.value = chart.start + i * chart.step
+                    box.innerText = box.dataset.value;
+                    box.addEventListener('click', onBoxClicked);
+                    
+                    i++;
+                }
+            }
+        }
+        
+        function resize() {
+            const chart_div = document.getElementById('chart');
+            const available_height = window.innerHeight - chart_div.offsetTop - 15;
+            const available_width = window.innerWidth - 15;
+            const size = Math.min(available_height, available_width);
+            const margin = 4;
+            const border = 1;
+            const height = size / Math.max(chart.rows, chart.columns) - 2 * margin - 2 * border;
+
+            chart_div.style.height = size + "px";
+            chart_div.style.width = size + "px";
+            
+            for(let i = 0; i < chart.rows * chart.columns; i++) {
+                const box = document.getElementById('box_' + i);
+                box.style.height = height + "px";
+                box.style.width = height + "px";
+                box.style.margin = margin + "px";
+                box.style.borderWidth = border + "px";
+                box.style.lineHeight = height + "px";
+                box.style.fontSize = height/2 + "px";
+            }
+            
+            document.getElementById("pattern_builder").style.fontSize = height/3 + "px";
+        }
+        
+        function onBoxClicked(e) {
+            if(e.target.dataset.color == chart.color) {
+                chart.sound_back.pause();
+                chart.sound_back.currentTime = 0;
+                chart.sound_back.play();
+                e.target.style.backgroundColor = e.target.dataset.toggle;
+                e.target.dataset.color = e.target.dataset.toggle;
+            } else {
+                chart.sound.pause();
+                chart.sound.currentTime = 0;
+                chart.sound.play();
+                e.target.style.backgroundColor = chart.color;
+                e.target.dataset.toggle = e.target.dataset.color;
+                e.target.dataset.color = chart.color;
+                e.target.className = "clicked";
+                setTimeout(()=>e.target.className = "", chart.clicked_duration);
+            }
+        }
+        
+        function setColor(e) {
+            const color_blocks = document.getElementById("colors").children;
+            for(let i = 0; i < color_blocks.length; i++) {
+                color_blocks[i].className = "";
+            }
+            e.target.className = "selected";
+            chart.color = e.target.dataset.color;
+            chart.sound_change.pause();
+            chart.sound_change.currentTime = 0;
+            chart.sound_change.play();
+        }
+        
+        function toggleBuilder() {
+            const builder = document.getElementById("pattern_builder");
+            if(builder.style.display == "block") {
+                builder.style.display = "none";
+            } else {
+                builder.style.display = "block";
+            }
+        }
+        
+        function toggleNewGrid() {
+            const newGrid = document.getElementById("new_grid");
+            if(newGrid.style.display == "block") {
+                newGrid.style.display = "none";
+            } else {
+                newGrid.style.display = "block";
+            }
+        }
+        
+        function nextPatternColor() {
+            const color_div = document.getElementById("pattern_color");
+            const idx = (chart.colors.findIndex(c => c == color_div.dataset.color) + 1) % chart.colors.length;
+            color_div.dataset.color = chart.colors[idx];
+            color_div.style.backgroundColor = chart.colors[idx];
+        }
+        
+        function updateOrdinal() {
+            const num = document.getElementById("every_nth").value;
+            let ordinal = "th";
+            if(num == 11 || num == 12 || num == 13) {
+                ordinal = "th";
+            } else if(num % 10 == 1) {
+                ordinal = "st";
+            } else if(num % 10 == 2) {
+                ordinal = "nd";
+            } else if(num % 10 == 3) {
+                ordinal = "rd";
+            }
+            document.getElementById("ordinal").innerText = ordinal;
+        }
+        
+        function buildPattern(pattern_timeout) {
+            makePattern(
+                document.getElementById("every_nth").value,
+                document.getElementById("starting_at").value,
+                document.getElementById("pattern_color").dataset.color,
+                pattern_timeout
+            );
+            //                 document.getElementById("pattern_timeout").value
+
+        }
+        
+        function makePattern(every_nth, starting_at, color, timeout) {
+            starting_at = typeof starting_at !== 'undefined' ? starting_at : 0;
+            color = typeof color !== 'undefined' ? color : chart.color;
+            timeout = typeof timeout !== 'undefined' ? timeout : 0;
+            clearTimeout(chart.pattern_timer);
+            _makePattern(every_nth, starting_at, color, timeout);
+        }
+        
+        function _makePattern(every_nth, starting_at, color, timeout) {
+            every_nth = parseInt(every_nth);
+            starting_at = parseInt(starting_at);
+            if(timeout < 0) starting_at += every_nth;
+            const modulo = starting_at % every_nth;
+            for(let i=0; i<100; i++) {
+                const box = document.getElementById("box_" + i);
+                const value = parseInt(box.dataset.value);
+                if(value < starting_at) {
+                    continue;
+                }
+                if(value % every_nth == modulo) {
+                    box.style.backgroundColor = color;
+                    box.dataset.color = color;
+                    if(timeout < 0) {
+                        document.getElementById("starting_at").value = value;
+                        chart.sound.pause();
+                        chart.sound.currentTime = 0;
+                        chart.sound.play();
+                        return;
+                    }
+                    chart.sound_long.play();
+                    chart.pattern_timer = setTimeout(_makePattern, timeout, every_nth, value + every_nth, color, timeout);
+                    return;
+                }
+            }
+            chart.sound_long.pause();
+        }
+        
+        function newGrid() {
+            window.location.search = "start=" + document.getElementById('new_grid_size').value
+                + "&step=" + document.getElementById('new_grid_step').value
+                + "&rows=" + document.getElementById('new_grid_rows').value
+                + "&columns=" + document.getElementById('new_grid_columns').value;
+        }
+        
+        function clearAll() {
+            for(let i = 0; i < chart.rows * chart.columns; i++) {
+                const box = document.getElementById("box_" + i);
+                box.dataset.color = chart.colors[0];
+                box.dataset.toggle = chart.colors[0];
+                box.style.backgroundColor = chart.colors[0];
+            }
+        }
+        
+        makeColors();
+        makeBoxes();
+        resize();
+    </script>
+  </body>
+</html>
